@@ -1,33 +1,37 @@
 import type { Product } from '../types';
 
-// Inline clean SVG tech imagery generators for 100% reliable rendering without external image dependencies
-const createSvgDataUrl = (title: string, category: string, color1: string, color2: string) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
-    <defs>
-      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="${color1}"/>
-        <stop offset="100%" stop-color="${color2}"/>
-      </linearGradient>
-      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-        <feDropShadow dx="8" dy="12" stdDeviation="10" flood-color="#a3b1c6" flood-opacity="0.6"/>
-        <feDropShadow dx="-8" dy="-12" stdDeviation="10" flood-color="#ffffff" flood-opacity="0.8"/>
-      </filter>
-    </defs>
-    <rect width="600" height="600" fill="#E0E5EC"/>
-    <rect x="80" y="80" width="440" height="440" rx="36" fill="#E0E5EC" filter="url(#shadow)"/>
-    <circle cx="300" cy="260" r="130" fill="url(#g)" opacity="0.9"/>
-    <rect x="220" y="180" width="160" height="160" rx="28" fill="#ffffff" opacity="0.2"/>
-    <text x="300" y="440" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="28" fill="#3D4852">${title}</text>
-    <text x="300" y="475" text-anchor="middle" font-family="'DM Sans', sans-serif" font-weight="600" font-size="16" fill="#6C63FF" letter-spacing="3">${category.toUpperCase()}</text>
-  </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+// Keep product visuals real and recognizable while allowing the catalog to stay data-only.
+const createSvgDataUrl = (title: string, category: string, _color1: string, _color2: string) => {
+  const imageSets: Record<string, string[]> = {
+    Phones: [
+      'photo-1592899677977-9c10ca588bbd', 'photo-1511707171634-5f897ff02aa9',
+      'photo-1556656793-08538906a9f8', 'photo-1598327105666-5b89351aff97',
+      'photo-1565849904461-04a58ad377e0', 'photo-1533228100845-08145b01de14',
+      'photo-1601784551446-20c9e07cdbdb', 'photo-1523206489230-c012c64b2b48'
+    ],
+    Laptops: [
+      'photo-1517336714739-489689fd1ca8', 'photo-1496181133206-80ce9b88a853',
+      'photo-1531297484001-80022131f5a1', 'photo-1541807084-5c52b6b3adef',
+      'photo-1484788984921-03950022c9ef', 'photo-1593642702821-c8da6771f0c6',
+      'photo-1511385348-a52b4a160dc2', 'photo-1496181133206-80ce9b88a853'
+    ],
+    Accessories: [
+      'photo-1606220945770-b5b6c2c55bf1', 'photo-1523275335684-37898b6baf30',
+      'photo-1505740420928-5e560c06d30e', 'photo-1609592424522-6db3f7f7f8bd',
+      'photo-1587033411391-5d9e51cce126', 'photo-1572569511254-d8f925fe2cbb',
+      'photo-1546435770-a3e426bf472b', 'photo-1494438639946-1ebd1d20bf85'
+    ]
+  };
+  const images = imageSets[category] || imageSets.Accessories;
+  const imageIndex = Math.abs(title.length + category.length) % images.length;
+  return `https://images.unsplash.com/${images[imageIndex]}?auto=format&fit=crop&w=900&q=85`;
 };
 
 export const MOCK_PRODUCTS: Product[] = [
   // --- PHONES (8) ---
   {
     id: 'phone-01',
-    name: 'Nimbus Phone 15 Pro',
+    name: 'Apple iPhone 15 Pro',
     category: 'phones',
     price: 1099,
     rating: 4.9,
@@ -46,7 +50,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-02',
-    name: 'Nimbus Phone 15',
+    name: 'Apple iPhone 15',
     category: 'phones',
     price: 799,
     rating: 4.7,
@@ -65,7 +69,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-03',
-    name: 'Nimbus Fold Ultra',
+    name: 'Samsung Galaxy Z Fold6',
     category: 'phones',
     price: 1799,
     rating: 4.8,
@@ -84,7 +88,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-04',
-    name: 'Nimbus Phone Lite',
+    name: 'Samsung Galaxy A55 5G',
     category: 'phones',
     price: 449,
     rating: 4.5,
@@ -102,7 +106,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-05',
-    name: 'Nimbus Phone SE',
+    name: 'Samsung Galaxy S23 FE',
     category: 'phones',
     price: 349,
     rating: 4.4,
@@ -120,7 +124,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-06',
-    name: 'Nimbus Pro Max Ultra',
+    name: 'Samsung Galaxy S24 Ultra',
     category: 'phones',
     price: 1399,
     rating: 4.95,
@@ -138,7 +142,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-07',
-    name: 'Nimbus Cyber Edition',
+    name: 'Samsung Galaxy S24',
     category: 'phones',
     price: 999,
     rating: 4.65,
@@ -156,7 +160,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'phone-08',
-    name: 'Nimbus Mini 5G',
+    name: 'Apple iPhone 13 mini',
     category: 'phones',
     price: 549,
     rating: 4.6,
@@ -176,7 +180,7 @@ export const MOCK_PRODUCTS: Product[] = [
   // --- LAPTOPS (8) ---
   {
     id: 'laptop-01',
-    name: 'Nimbus Book Pro 16',
+    name: 'Lenovo ThinkPad P1 Gen 7',
     category: 'laptops',
     price: 2499,
     rating: 4.9,
@@ -195,7 +199,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-02',
-    name: 'Nimbus Book Air 14',
+    name: 'HP Spectre x360 14',
     category: 'laptops',
     price: 1199,
     rating: 4.85,
@@ -214,7 +218,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-03',
-    name: 'Nimbus Blade Gaming 18',
+    name: 'Lenovo Legion Pro 7i',
     category: 'laptops',
     price: 3299,
     rating: 4.92,
@@ -232,7 +236,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-04',
-    name: 'Nimbus Studio Canvas',
+    name: 'HP Envy x360 14',
     category: 'laptops',
     price: 1899,
     rating: 4.75,
@@ -250,7 +254,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-05',
-    name: 'Nimbus Slim 13',
+    name: 'Lenovo Yoga Slim 7i',
     category: 'laptops',
     price: 899,
     rating: 4.6,
@@ -268,7 +272,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-06',
-    name: 'Nimbus Workstation Workhorse',
+    name: 'HP ZBook Fury G11',
     category: 'laptops',
     price: 2799,
     rating: 4.88,
@@ -286,7 +290,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-07',
-    name: 'Nimbus Chromebook Tactile',
+    name: 'Lenovo IdeaPad Flex 5i',
     category: 'laptops',
     price: 499,
     rating: 4.35,
@@ -304,7 +308,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'laptop-08',
-    name: 'Nimbus Book Pro 14',
+    name: 'HP EliteBook 840 G11',
     category: 'laptops',
     price: 1999,
     rating: 4.89,
@@ -324,7 +328,7 @@ export const MOCK_PRODUCTS: Product[] = [
   // --- ACCESSORIES (8) ---
   {
     id: 'acc-01',
-    name: 'Nimbus Pods Pro ANC',
+    name: 'Apple AirPods Pro (2nd Gen)',
     category: 'accessories',
     price: 249,
     rating: 4.85,
@@ -342,7 +346,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-02',
-    name: 'Nimbus Tactile Watch 2',
+    name: 'Samsung Galaxy Watch7',
     category: 'accessories',
     price: 399,
     rating: 4.78,
@@ -360,7 +364,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-03',
-    name: 'Nimbus Sound Studio Headphones',
+    name: 'Samsung Galaxy Buds3 Pro',
     category: 'accessories',
     price: 449,
     rating: 4.9,
@@ -377,7 +381,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-04',
-    name: 'Nimbus PowerStation 100W',
+    name: 'HP USB-C 100W Power Adapter',
     category: 'accessories',
     price: 89,
     rating: 4.7,
@@ -394,7 +398,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-05',
-    name: 'Nimbus Ergonomic Mechanical Board',
+    name: 'Lenovo ThinkPad TrackPoint Keyboard II',
     category: 'accessories',
     price: 199,
     rating: 4.82,
@@ -411,7 +415,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-06',
-    name: 'Nimbus Precision Sculpt Mouse',
+    name: 'HP 690 Rechargeable Wireless Mouse',
     category: 'accessories',
     price: 129,
     rating: 4.68,
@@ -428,7 +432,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-07',
-    name: 'Nimbus Ultra-Fast MagSafe PowerBank',
+    name: 'Apple MagSafe Battery Pack',
     category: 'accessories',
     price: 69,
     rating: 4.62,
@@ -445,7 +449,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'acc-08',
-    name: 'Nimbus Thunderbolt 4 Docking Station',
+    name: 'Lenovo ThinkPad Universal Thunderbolt 4 Dock',
     category: 'accessories',
     price: 299,
     rating: 4.87,

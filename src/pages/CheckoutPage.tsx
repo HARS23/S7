@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CartItem, Order, FraudEngineResult } from '../types';
-import { evaluateOrder, getOrCreateDeviceId, hashCardNumber, PRESET_FRAUD_RINGS } from '../lib/fraudEngine';
+import { evaluateOrder, getOrCreateDeviceId, hashCardNumber, PRESET_FRAUD_RINGS, scoreOrderWithFraudApi } from '../lib/fraudEngine';
 import { NeuCard } from '../components/ui/NeuCard';
 import { NeuButton } from '../components/ui/NeuButton';
 import { NeuInput } from '../components/ui/NeuInput';
@@ -79,7 +79,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
   };
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const accountId = `acc_${fullName.toLowerCase().replace(/\s+/g, '_')}_${cardNumber.slice(-4)}`;
@@ -92,7 +92,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       price: item.product.price,
     }));
 
-    const { order, result } = evaluateOrder({
+    const localEvaluation = evaluateOrder({
       accountId,
       accountName: fullName,
       deviceId: activeDeviceId,
@@ -103,6 +103,31 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       amount: total,
       items,
     });
+    const remoteScore = await scoreOrderWithFraudApi({
+      amount: total,
+      transactionType: 'PAYMENT',
+      step: Math.floor(Date.now() / 3600000),
+      accountId,
+      deviceId: activeDeviceId,
+      ipAddress,
+      shippingAddress: address,
+    });
+    const { order, result } = localEvaluation;
+    if (remoteScore) {
+      const remoteStatus = remoteScore.action === 'BLOCK' ? 'BLOCKED' : remoteScore.action === 'STEP_UP' ? 'STEP_UP' : 'APPROVED';
+      order.status = remoteStatus;
+      order.score = remoteScore.risk_score;
+      order.modelVersion = remoteScore.model_version;
+      order.autonomousAction = remoteScore.action;
+      order.confidence = Math.round(remoteScore.confidence * 100);
+      order.reasons.push(...remoteScore.signals.map((signal) => `Trained model signal: ${signal}`));
+      result.status = remoteStatus;
+      result.score = remoteScore.risk_score;
+      result.modelVersion = remoteScore.model_version;
+      result.autonomousAction = remoteScore.action;
+      result.confidence = Math.round(remoteScore.confidence * 100);
+      result.graphSignals = remoteScore.signals;
+    }
 
     setLastOrderResult({ order, result });
 

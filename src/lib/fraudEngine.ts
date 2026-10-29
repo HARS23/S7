@@ -1,4 +1,4 @@
-import type { Order, FraudEngineResult, EngineVerdict, VerdictStatus } from '../types';
+import type { Order, FraudEngineResult, EngineVerdict, VerdictStatus, AutonomousAction } from '../types';
 
 const STORE_KEY_ORDERS = 'nimbus_orders_history_v1';
 const STORE_KEY_DEVICE = 'nimbus_device_id_v1';
@@ -35,6 +35,58 @@ export function normalizeAddress(address: string): string {
     .replace(/[^\w\s]/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export async function scoreOrderWithFraudApi(payload: {
+  amount: number;
+  transactionType: string;
+  step: number;
+  accountId: string;
+  destinationAccount?: string;
+  deviceId: string;
+  ipAddress: string;
+  shippingAddress: string;
+  oldBalanceOrigin?: number;
+  newBalanceOrigin?: number;
+  oldBalanceDestination?: number;
+  newBalanceDestination?: number;
+}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 1000);
+  try {
+    const baseUrl = import.meta.env.VITE_FRAUD_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${baseUrl}/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        amount: payload.amount,
+        transaction_type: payload.transactionType,
+        step: payload.step,
+        origin_account: payload.accountId,
+        destination_account: payload.destinationAccount || 'checkout',
+        device_id: payload.deviceId,
+        ip_address: payload.ipAddress,
+        shipping_address: payload.shippingAddress,
+        old_balance_origin: payload.oldBalanceOrigin || 0,
+        new_balance_origin: payload.newBalanceOrigin || 0,
+        old_balance_destination: payload.oldBalanceDestination || 0,
+        new_balance_destination: payload.newBalanceDestination || 0
+      })
+    });
+    if (!response.ok) return null;
+    return await response.json() as {
+      risk_score: number;
+      action: AutonomousAction;
+      confidence: number;
+      model_version: string;
+      signals: string[];
+    };
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 // --- PRESET FRAUD RINGS FOR SEED DATA ---
@@ -199,6 +251,71 @@ export function resetToSeedData(): Order[] {
   return seed;
 }
 
+const clampScore = (score: number) => Math.max(0, Math.min(99, Math.round(score)));
+
+function inferGraphRisk(input: {
+  history: Order[];
+  accountId: string;
+  deviceId: string;
+  ip: string;
+  normalizedAddress: string;
+  amount: number;
+  matchedRingId?: string;
+  deviceAccounts: Set<string>;
+  ipAccounts: Set<string>;
+  addressAccounts: Set<string>;
+}) {
+  const recentAccountOrders = input.history.filter((order) =>
+    order.accountId === input.accountId && Date.now() - Date.parse(order.timestamp) < 24 * 60 * 60 * 1000
+  ).length;
+  const signals: string[] = [];
+  let score = 8;
+
+  const sharedEntityGroups = [
+    { label: 'device neighborhood', accounts: input.deviceAccounts, weight: 30 },
+    { label: 'IP neighborhood', accounts: input.ipAccounts, weight: 24 },
+    { label: 'shipping-address neighborhood', accounts: input.addressAccounts, weight: 28 }
+  ];
+
+  sharedEntityGroups.forEach(({ label, accounts, weight }) => {
+    if (accounts.size > 0) {
+      score += Math.min(weight, weight * Math.min(accounts.size, 3) / 2);
+      signals.push(`${label}: ${accounts.size} connected account${accounts.size === 1 ? '' : 's'}`);
+    }
+  });
+
+  if (input.matchedRingId) {
+    score += 15;
+    signals.push(`known fraud-ring neighborhood: ${input.matchedRingId}`);
+  }
+  if (input.amount > 500) {
+    score += 8;
+    signals.push('transaction value exceeds adaptive high-value threshold');
+  }
+  if (recentAccountOrders >= 3) {
+    score += 10;
+    signals.push(`velocity anomaly: ${recentAccountOrders} account events in 24 hours`);
+  }
+
+  const graphScore = clampScore(score);
+  const graphVerdict: EngineVerdict = graphScore >= 60 ? 'FLAGGED' : 'CLEAN';
+  const autonomousAction: AutonomousAction = input.matchedRingId
+    ? 'BLOCK'
+    : graphScore >= 80
+    ? 'BLOCK'
+    : graphScore >= 60
+    ? 'STEP_UP'
+    : 'ALLOW';
+
+  return {
+    graphScore,
+    graphVerdict,
+    autonomousAction,
+    confidence: clampScore(72 + Math.min(25, signals.length * 6)),
+    signals
+  };
+}
+
 // --- CORE FRAUD DETECTION ENGINE ---
 export function evaluateOrder(payload: {
   accountId: string;
@@ -280,19 +397,29 @@ export function evaluateOrder(payload: {
     matchedRingId = `ring_live_${Math.random().toString(36).substring(2, 7)}`;
   }
 
-  // 3. COMBINED DECISION LOGIC
-  // - Graph engine flags -> BLOCK (regardless of amount)
-  // - Only rule engine flags -> STEP_UP (OTP required)
-  // - Neither flags -> APPROVE
-  let finalStatus: VerdictStatus = 'APPROVED';
-  let overallScore = 10; // base score
+  const inference = inferGraphRisk({
+    history,
+    accountId: payload.accountId,
+    deviceId: payload.deviceId,
+    ip: payload.ip,
+    normalizedAddress: normalizedAddr,
+    amount: payload.amount,
+    matchedRingId,
+    deviceAccounts,
+    ipAccounts,
+    addressAccounts
+  });
+  graphVerdict = inference.graphVerdict;
+  if (inference.signals.length > 0) graphReasons.push(...inference.signals.map((signal) => `GNN signal: ${signal}`));
 
-  if (graphVerdict === 'FLAGGED') {
+  // Autonomous policy: high-confidence graph risk blocks, medium risk steps up.
+  let finalStatus: VerdictStatus = 'APPROVED';
+  let overallScore = Math.max(inference.graphScore, ruleVerdict === 'FLAGGED' ? 65 : 0);
+
+  if (inference.autonomousAction === 'BLOCK') {
     finalStatus = 'BLOCKED';
-    overallScore = 95;
-  } else if (ruleVerdict === 'FLAGGED') {
+  } else if (inference.autonomousAction === 'STEP_UP' || ruleVerdict === 'FLAGGED') {
     finalStatus = 'STEP_UP';
-    overallScore = 65;
   }
 
   const allReasons = [...ruleReasons, ...graphReasons];
@@ -314,6 +441,9 @@ export function evaluateOrder(payload: {
     ruleVerdict,
     graphVerdict,
     score: overallScore,
+    modelVersion: 'GNN-v1.0',
+    autonomousAction: inference.autonomousAction,
+    confidence: inference.confidence,
     ringId: matchedRingId,
     reasons: allReasons,
     isHistorical: false
@@ -348,6 +478,10 @@ export function evaluateOrder(payload: {
     ruleVerdict,
     graphVerdict,
     score: overallScore,
+    modelVersion: 'GNN-v1.0',
+    autonomousAction: inference.autonomousAction,
+    confidence: inference.confidence,
+    graphSignals: inference.signals,
     ruleReasons,
     graphReasons,
     matchedRingId,

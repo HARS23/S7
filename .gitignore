@@ -9,6 +9,11 @@ lerna-debug.log*
 
 node_modules
 dist
+.venv
+ml_service/data/
+ml_service/artifacts/
+__pycache__/
+*.pyc
 dist-ssr
 *.local
 

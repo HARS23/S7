@@ -21,12 +21,17 @@ export interface CartItem {
 
 export type VerdictStatus = 'APPROVED' | 'STEP_UP' | 'BLOCKED';
 export type EngineVerdict = 'CLEAN' | 'FLAGGED';
+export type AutonomousAction = 'ALLOW' | 'STEP_UP' | 'BLOCK';
 
 export interface FraudEngineResult {
   status: VerdictStatus;
   ruleVerdict: EngineVerdict;
   graphVerdict: EngineVerdict;
   score: number; // 0 (safe) - 100 (high risk)
+  modelVersion: string;
+  autonomousAction: AutonomousAction;
+  confidence: number;
+  graphSignals: string[];
   ruleReasons: string[];
   graphReasons: string[];
   matchedRingId?: string;
@@ -60,6 +65,9 @@ export interface Order {
   ruleVerdict: EngineVerdict;
   graphVerdict: EngineVerdict;
   score: number;
+  modelVersion?: string;
+  autonomousAction?: AutonomousAction;
+  confidence?: number;
   ringId?: string;
   reasons: string[];
   isHistorical?: boolean;
